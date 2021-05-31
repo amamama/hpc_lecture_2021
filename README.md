@@ -7,6 +7,7 @@ Makefile，jobファイルの追加
 事前にMPI化されていた行列Cの部分行列を計算する部分を`06_cuda/10_mpi.cu`，`08_cache_gpu/02_grid.cu`を参考にCUDA化した．
 MPIの通信の部分がボトルネックになって`08_cache_gpu/03_shared.cu`よりも遅くなっている，なんとかしたかったができなかった．
 MPIの改善が終わったら，`08_cache_gpu/03_shared.cu` を参考にしてGPUのshared memoryを使用しようと思っていた
+あと，ググったらCUDA上でのintrinsic化もできそうだったがMPIの通信が早くならず断念
 
 
 # hpc_lecture
