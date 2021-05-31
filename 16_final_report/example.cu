@@ -15,11 +15,15 @@ void cudaCheckError(const char *f, int l) {
 
 #define cuda(name, ...) (cuda##name(__VA_ARGS__), cudaCheckError(__func__, __LINE__))
 
-__global__ void GPU_Kernel() {
-  printf(" GPU block  : %d / %d  GPU thread : %d / %d\n",
-         blockIdx.x, gridDim.x, threadIdx.x, blockDim.x);
+__global__ void matmul_trans(float *A, float *B, float *C, int N, int offset) {
+  int i = blockIdx.x;
+  int j = threadIdx.x;
+  float sum = 0;
+  for (int k = 0; k < N; k++) {
+    sum += A[N*i+k] * B[N*j+k];
+  }
+  C[N*i+j+offset] = sum;
 }
-
 
 int main(int argc, char** argv) {
 
@@ -87,10 +91,14 @@ MPIの受信用にrecvを用意
 
     //行列席の計算．結果は部分的な行列
     //size回のループでsubCが埋まる．一回で１マス埋まる
+	/*
     for (int i=0; i<N/mpisize; i++)
       for (int j=0; j<N/mpisize; j++)
         for (int k=0; k<N; k++)
           subC[i][j+offset] += subA[i][k] * subB[j][k];
+	*/
+	matmul_trans<<<N/mpisize, N/mpisize>>>((float*)subA, (float*)subB, (float*)subC, N, offset);
+	cudaCheckError(__func__, __LINE__);
 
     auto toc = chrono::steady_clock::now();
     comp_time += chrono::duration<double>(toc - tic).count();
