@@ -38,20 +38,26 @@ int main(int argc, char** argv) {
 各rankに対し，sizeで分割された小さな行列を作る．
 MPIの受信用にrecvを用意
 */
-  const int N = 4096;
-  vector<float> A(N*N);
-  vector<float> B(N*N);
-  vector<float> C(N*N, 0);
-  vector<float> subA(N*N/mpisize);
-  vector<float> subB(N*N/mpisize);
-  vector<float> subC(N*N/mpisize, 0);
-  vector<float> recv(N*N/mpisize);
+  constexpr size_t N = 2048;
+  constexpr size_t matrix_size = N * N * sizeof(float);
+  float (*A)[N], (*B)[N], (*C)[N];
+  A = (float(*)[N])malloc(matrix_size);
+  B = (float(*)[N])malloc(matrix_size);
+  C = (float(*)[N])malloc(matrix_size);
+
+  float (*subA)[N], *subB, (*subC)[N], *recv;
+  cuda(MallocManaged, &subA, matrix_size/mpisize);
+  cuda(MallocManaged, &subB, matrix_size/mpisize);
+  cuda(MallocManaged, &subC, matrix_size/mpisize);
+
+  cuda(MallocManaged, &recv, matrix_size/mpisize);
 
   // random na kazu de syokika
   for (int i=0; i<N; i++) {
     for (int j=0; j<N; j++) {
-      A[N*i+j] = drand48();
-      B[N*i+j] = drand48();
+      A[i][j] = drand48();
+      B[i][j] = drand48();
+      C[i][j] = 0;
     }
   }
 
@@ -59,12 +65,12 @@ MPIの受信用にrecvを用意
   int offset = N/mpisize*mpirank;
   for (int i=0; i<N/mpisize; i++)
     for (int j=0; j<N; j++)
-      subA[N*i+j] = A[N*(i+offset)+j];
+      subA[i][j] = A[(i+offset)][j];
 
   //Bを小さな行列にコピー
   for (int i=0; i<N; i++)
     for (int j=0; j<N/mpisize; j++)
-      subB[N/mpisize*i+j] = B[N*i+j+offset];
+      subB[N/mpisize*i+j] = B[i][j+offset];
 
   //ring 通信のアドレス
   int recv_from = (mpirank + 1) % mpisize;
@@ -78,11 +84,11 @@ MPIの受信用にrecvを用意
     offset = N/mpisize*((mpirank+impirank) % mpisize);
 
     //行列席の計算．結果は部分的な行列
-	//size回のループでsubCが埋まる．一回で１マス埋まる
+    //size回のループでsubCが埋まる．一回で１マス埋まる
     for (int i=0; i<N/mpisize; i++)
       for (int j=0; j<N/mpisize; j++)
         for (int k=0; k<N; k++)
-          subC[N*i+j+offset] += subA[N*i+k] * subB[N/mpisize*k+j];
+          subC[i][j+offset] += subA[i][k] * subB[N/mpisize*k+j];
 
     auto toc = chrono::steady_clock::now();
     comp_time += chrono::duration<double>(toc - tic).count();
@@ -109,11 +115,11 @@ MPIの受信用にrecvを用意
   for (int i=0; i<N; i++)
     for (int j=0; j<N; j++)
       for (int k=0; k<N; k++)
-        C[N*i+j] -= A[N*i+k] * B[N*k+j];
+        C[i][j] -= A[i][k] * B[k][j];
   double err = 0;
   for (int i=0; i<N; i++)
     for (int j=0; j<N; j++)
-      err += fabs(C[N*i+j]);
+      err += fabs(C[i][j]);
   // kokomade
 
   // syutsuryoku
