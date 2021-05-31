@@ -45,7 +45,8 @@ MPIの受信用にrecvを用意
   B = (float(*)[N])malloc(matrix_size);
   C = (float(*)[N])malloc(matrix_size);
 
-  float (*subA)[N], *subB, (*subC)[N], *recv;
+  //subA, ..., recv : float[][N]
+  float (*subA)[N], (*subB)[N], (*subC)[N], (*recv)[N];
   cuda(MallocManaged, &subA, matrix_size/mpisize);
   cuda(MallocManaged, &subB, matrix_size/mpisize);
   cuda(MallocManaged, &subC, matrix_size/mpisize);
@@ -67,10 +68,11 @@ MPIの受信用にrecvを用意
     for (int j=0; j<N; j++)
       subA[i][j] = A[(i+offset)][j];
 
-  //Bを小さな行列にコピー
+  //Bを小さな行列にコピー. 転置する
   for (int i=0; i<N; i++)
     for (int j=0; j<N/mpisize; j++)
-      subB[N/mpisize*i+j] = B[i][j+offset];
+      subB[j][i] = B[i][j+offset];
+      //subB[N/mpisize*i+j] = B[i][j+offset];
 
   //ring 通信のアドレス
   int recv_from = (mpirank + 1) % mpisize;
@@ -88,7 +90,7 @@ MPIの受信用にrecvを用意
     for (int i=0; i<N/mpisize; i++)
       for (int j=0; j<N/mpisize; j++)
         for (int k=0; k<N; k++)
-          subC[i][j+offset] += subA[i][k] * subB[N/mpisize*k+j];
+          subC[i][j+offset] += subA[i][k] * subB[j][k];
 
     auto toc = chrono::steady_clock::now();
     comp_time += chrono::duration<double>(toc - tic).count();
@@ -100,8 +102,9 @@ MPIの受信用にrecvを用意
     MPI_Waitall(2, request, MPI_STATUS_IGNORE);
 
     //行列Bを新しい行列に更新
-    for (int i=0; i<N*N/mpisize; i++)
-      subB[i] = recv[i];
+    for (int i=0; i<N/mpisize; i++)
+      for(int j = 0; j < N; j++)
+        subB[i][j] = recv[i][j];
 
     tic = chrono::steady_clock::now();
     comm_time += chrono::duration<double>(tic - toc).count();
