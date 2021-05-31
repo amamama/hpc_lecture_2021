@@ -59,7 +59,7 @@ int main(int argc, char** argv) {
 各rankに対し，sizeで分割された小さな行列を作る．
 MPIの受信用にrecvを用意
 */
-  constexpr size_t N = 8192;
+  constexpr size_t N = 4096;
   const int M = 1024;
   const int Nm = N / mpisize;
   constexpr size_t matrix_size = N * N * sizeof(float);
