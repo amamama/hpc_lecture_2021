@@ -59,7 +59,7 @@ int main(int argc, char** argv) {
 各rankに対し，sizeで分割された小さな行列を作る．
 MPIの受信用にrecvを用意
 */
-  constexpr size_t N = 4096;
+  constexpr size_t N = 8192;
   const int M = 1024;
   const int Nm = N / mpisize;
   constexpr size_t matrix_size = N * N * sizeof(float);
@@ -123,7 +123,7 @@ MPIの受信用にrecvを用意
         for (int k=0; k<N; k++)
           subC[i][j+offset] += subA[i][k] * subB[j][k];
 	*/
-	matmul_trans<<<dim3(Nm/M, Nm), M, N*sizeof(float)>>>((float*)subA, (float*)subB, (float*)subC, N, offset);
+	matmul_trans<<<dim3(Nm/M, Nm), M, N*sizeof(float) >>>((float*)subA, (float*)subB, (float*)subC, N, offset);
 	cudaCheckError(__func__, __LINE__);
 
     auto toc = chrono::steady_clock::now();

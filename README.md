@@ -6,7 +6,7 @@ Makefile，jobファイルの追加
 
 キャッシュの授業で行列Bの空間的局所性を上げると良いと習ったので，最初に行列Bを転置するコードを書いた．
 事前にMPI化されていた行列Cの部分行列を計算する部分を`06_cuda/10_mpi.cu`，`08_cache_gpu/02_grid.cu`，`08_cache_gpu/03_shared.cu` を参考にしてCUDA化した．
-GPUのshared memoryを使用したがMPIの通信がボトルネックで`03_shared.cu`よりも性能は出なかった．
+GPUのshared memoryを使用したがMPIの通信がボトルネックで`03_shared.cu`よりも性能は出なかった．おそらく12288要素より大きいfloat型の配列としてshared memoryを確保できないのでN=8192より大きい数字はshared memoryを使用しないコードに書き換える必要がある．
 また，Nを倍々にしていくと誤差が4倍ずつ増えていった．これはサイズがNの2乗に比例するからだと考えられる．
 
 
