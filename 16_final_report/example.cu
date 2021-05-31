@@ -16,13 +16,22 @@ void cudaCheckError(const char *f, int l) {
 #define cuda(name, ...) (cuda##name(__VA_ARGS__), cudaCheckError(__func__, __LINE__))
 
 __global__ void matmul_trans(float *A, float *B, float *C, int N, int offset) {
-  int i = blockIdx.x;
-  int j = threadIdx.x;
+  int i = blockIdx.y;
+  int j = threadIdx.x + blockDim.x * blockIdx.x;
   float sum = 0;
+  extern __shared__ float A_s[];
   for (int k = 0; k < N; k++) {
     sum += A[N*i+k] * B[N*j+k];
   }
   C[N*i+j+offset] = sum;
+}
+
+__global__ void update(float *dest, float *src) {
+	const int N = blockDim.y;
+	const int i = threadIdx.x + blockDim.x * blockIdx.x;
+	const int j = blockIdx.y;
+	dest[N * i + j] = src[N * i + j];
+    __syncthreads();
 }
 
 int main(int argc, char** argv) {
@@ -43,6 +52,8 @@ int main(int argc, char** argv) {
 MPIの受信用にrecvを用意
 */
   constexpr size_t N = 2048;
+  const int M = 512;
+  const int Nm = N / mpisize;
   constexpr size_t matrix_size = N * N * sizeof(float);
   float (*A)[N], (*B)[N], (*C)[N];
   A = (float(*)[N])malloc(matrix_size);
@@ -67,14 +78,14 @@ MPIの受信用にrecvを用意
   }
 
   //Aを小さな行列にコピー
-  int offset = N/mpisize*mpirank;
-  for (int i=0; i<N/mpisize; i++)
+  int offset = Nm*mpirank;
+  for (int i=0; i<Nm; i++)
     for (int j=0; j<N; j++)
       subA[i][j] = A[(i+offset)][j];
 
   //Bを小さな行列にコピー. 転置する
   for (int i=0; i<N; i++)
-    for (int j=0; j<N/mpisize; j++)
+    for (int j=0; j<Nm; j++)
       subB[j][i] = B[i][j+offset];
       //subB[N/mpisize*i+j] = B[i][j+offset];
 
@@ -83,11 +94,12 @@ MPIの受信用にrecvを用意
   int send_to = (mpirank - 1 + mpisize) % mpisize;
 
   double comp_time = 0, comm_time = 0;
+  double comm_time2 = 0;
   for(int impirank=0; impirank<mpisize; impirank++) {
 
     auto tic = chrono::steady_clock::now();
 
-    offset = N/mpisize*((mpirank+impirank) % mpisize);
+    offset = Nm*((mpirank+impirank) % mpisize);
 
     //行列席の計算．結果は部分的な行列
     //size回のループでsubCが埋まる．一回で１マス埋まる
@@ -97,7 +109,7 @@ MPIの受信用にrecvを用意
         for (int k=0; k<N; k++)
           subC[i][j+offset] += subA[i][k] * subB[j][k];
 	*/
-	matmul_trans<<<N/mpisize, N/mpisize>>>((float*)subA, (float*)subB, (float*)subC, N, offset);
+	matmul_trans<<<dim3(Nm/M, Nm), M, N*sizeof(float)>>>((float*)subA, (float*)subB, (float*)subC, N, offset);
 	cudaCheckError(__func__, __LINE__);
 
     auto toc = chrono::steady_clock::now();
@@ -105,14 +117,20 @@ MPIの受信用にrecvを用意
 
     //ring通信
     MPI_Request request[2];
-    MPI_Isend(&subB[0], N*N/mpisize, MPI_FLOAT, send_to, 0, MPI_COMM_WORLD, &request[0]);
-    MPI_Irecv(&recv[0], N*N/mpisize, MPI_FLOAT, recv_from, 0, MPI_COMM_WORLD, &request[1]);
+    MPI_Isend(&subB[0], Nm*N, MPI_FLOAT, send_to, 0, MPI_COMM_WORLD, &request[0]);
+    MPI_Irecv(&recv[0], Nm*N, MPI_FLOAT, recv_from, 0, MPI_COMM_WORLD, &request[1]);
+    //MPI_Irecv(&subB[0], N*Nm, MPI_FLOAT, recv_from, 0, MPI_COMM_WORLD, &request[1]);
     MPI_Waitall(2, request, MPI_STATUS_IGNORE);
+	comm_time2 += chrono::duration<double>(chrono::steady_clock::now() - toc).count();
 
     //行列Bを新しい行列に更新
-    for (int i=0; i<N/mpisize; i++)
+    for (int i = 0; i < Nm; i++)
       for(int j = 0; j < N; j++)
         subB[i][j] = recv[i][j];
+
+	// バグってる
+	//update<<<dim3(Nm/M, N), M>>>((float*)subB, (float*)recv);
+	//cudaCheckError(__func__, __LINE__);
 
     tic = chrono::steady_clock::now();
     comm_time += chrono::duration<double>(tic - toc).count();
@@ -139,6 +157,7 @@ MPIの受信用にrecvを用意
     printf("N    : %d\n",N);
     printf("comp : %lf s\n", comp_time);
     printf("comm : %lf s\n", comm_time);
+    //printf("comm2 : %lf s\n", comm_time2);
     printf("total: %lf s (%lf GFlops)\n", time, 2.*N*N*N/time/1e9);
     printf("error: %lf\n",err/N/N);
   }
