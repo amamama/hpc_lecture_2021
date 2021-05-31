@@ -4,10 +4,10 @@
 行列の転置，MPI+CUDA化
 Makefile，jobファイルの追加
 
-事前にMPI化されていた行列Cの部分行列を計算する部分を`06_cuda/10_mpi.cu`，`08_cache_gpu/02_grid.cu`を参考にCUDA化した．
-MPIの通信の部分がボトルネックになって`08_cache_gpu/03_shared.cu`よりも遅くなっている，なんとかしたかったができなかった．
-`08_cache_gpu/03_shared.cu` を参考にしてGPUのshared memoryを使用したがMPIがボトルネックで`03_shared.cu`よりも性能は出なかった．
-また，Nを倍々にしていくと誤差が4倍づつ増えていった．これはサイズがNの2乗に比例するからだと考えられる．
+キャッシュの授業で行列Bの空間的局所性を上げると良いと習ったので，最初に行列Bを転置するコードを書いた．
+事前にMPI化されていた行列Cの部分行列を計算する部分を`06_cuda/10_mpi.cu`，`08_cache_gpu/02_grid.cu`，`08_cache_gpu/03_shared.cu` を参考にしてCUDA化した．
+GPUのshared memoryを使用したがMPIの通信がボトルネックで`03_shared.cu`よりも性能は出なかった．
+また，Nを倍々にしていくと誤差が4倍ずつ増えていった．これはサイズがNの2乗に比例するからだと考えられる．
 
 
 # hpc_lecture

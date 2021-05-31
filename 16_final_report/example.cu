@@ -178,6 +178,8 @@ MPIの受信用にrecvを用意
     printf("comm : %lf s\n", comm_time);
     printf("hoge : %lf s\n", hoge);
     printf("fuga : %lf s\n", fuga);
+    printf("comp - hoge : %lf s\n", comp_time - hoge);
+    printf("comm - fuga : %lf s\n", comm_time - fuga);
     printf("total: %lf s (%lf GFlops)\n", time, 2.*N*N*N/time/1e9);
     printf("error: %lf\n",err/N/N);
   }
