@@ -94,14 +94,20 @@ MPIの受信用にrecvを用意
   int send_to = (mpirank - 1 + mpisize) % mpisize;
 
   double comp_time = 0, comm_time = 0;
-  double comm_time2 = 0;
-  for(int impirank=0; impirank<mpisize; impirank++) {
+  double hoge = 0;
+  for(int impirank = 0; impirank < mpisize; impirank++) {
 
     auto tic = chrono::steady_clock::now();
+	//先に通信して裏で計算を進めれば早いのでは？
+    MPI_Request request[2];
+    MPI_Isend(&subB[0], Nm*N, MPI_FLOAT, send_to, 0, MPI_COMM_WORLD, &request[0]);
+    MPI_Irecv(&recv[0], Nm*N, MPI_FLOAT, recv_from, 0, MPI_COMM_WORLD, &request[1]);
+	auto foo = chrono::steady_clock::now();
+	hoge += chrono::duration<double>(foo - tic).count();
 
     offset = Nm*((mpirank+impirank) % mpisize);
 
-    //行列席の計算．結果は部分的な行列
+    //行列の計算．結果は部分的な行列
     //size回のループでsubCが埋まる．一回で１マス埋まる
 	/*
     for (int i=0; i<N/mpisize; i++)
@@ -110,20 +116,21 @@ MPIの受信用にrecvを用意
           subC[i][j+offset] += subA[i][k] * subB[j][k];
 	*/
 	matmul_trans<<<dim3(Nm/M, Nm), M, N*sizeof(float)>>>((float*)subA, (float*)subB, (float*)subC, N, offset);
-	cudaCheckError(__func__, __LINE__);
+	//cudaCheckError(__func__, __LINE__);
 
     auto toc = chrono::steady_clock::now();
     comp_time += chrono::duration<double>(toc - tic).count();
 
     //ring通信
-    MPI_Request request[2];
-    MPI_Isend(&subB[0], Nm*N, MPI_FLOAT, send_to, 0, MPI_COMM_WORLD, &request[0]);
-    MPI_Irecv(&recv[0], Nm*N, MPI_FLOAT, recv_from, 0, MPI_COMM_WORLD, &request[1]);
+    //MPI_Request request[2];
+    //MPI_Isend(&subB[0], Nm*N, MPI_FLOAT, send_to, 0, MPI_COMM_WORLD, &request[0]);
+    //MPI_Irecv(&recv[0], Nm*N, MPI_FLOAT, recv_from, 0, MPI_COMM_WORLD, &request[1]);
     //MPI_Irecv(&subB[0], N*Nm, MPI_FLOAT, recv_from, 0, MPI_COMM_WORLD, &request[1]);
     MPI_Waitall(2, request, MPI_STATUS_IGNORE);
-	comm_time2 += chrono::duration<double>(chrono::steady_clock::now() - toc).count();
+	//printf("rank %d tsu-sin,%d, %d\n", mpirank, send_to, recv_from);
 
     //行列Bを新しい行列に更新
+#pragma openmp for collapse(2)
     for (int i = 0; i < Nm; i++)
       for(int j = 0; j < N; j++)
         subB[i][j] = recv[i][j];
@@ -157,7 +164,7 @@ MPIの受信用にrecvを用意
     printf("N    : %d\n",N);
     printf("comp : %lf s\n", comp_time);
     printf("comm : %lf s\n", comm_time);
-    //printf("comm2 : %lf s\n", comm_time2);
+    printf("hoge : %lf s\n", hoge);
     printf("total: %lf s (%lf GFlops)\n", time, 2.*N*N*N/time/1e9);
     printf("error: %lf\n",err/N/N);
   }
