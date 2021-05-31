@@ -11,4 +11,6 @@ module load cuda/11.2.146
 module load gcc
 module load openmpi
 
+date
 mpirun -n 4 c.out
+echo -----

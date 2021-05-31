@@ -136,7 +136,7 @@ MPIの受信用にrecvを用意
     //MPI_Irecv(&subB[0], Nm*N, MPI_FLOAT, recv_from, 0, MPI_COMM_WORLD, &request[1]);
     MPI_Waitall(2, request, MPI_STATUS_IGNORE);
 	foo = chrono::steady_clock::now();
-	fuga += chrono::duration<double>(foo - tic).count();
+	fuga += chrono::duration<double>(foo - toc).count();
 	//printf("rank %d tsu-sin,%d, %d\n", mpirank, send_to, recv_from);
 
     //行列Bを新しい行列に更新
